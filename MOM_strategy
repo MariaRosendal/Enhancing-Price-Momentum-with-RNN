@@ -1,0 +1,1092 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. Import Relevant Packages"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import wrds\n",
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "from pandas.tseries.offsets import *\n",
+    "from scipy import stats\n",
+    "import datetime as dt\n",
+    "\n",
+    "import matplotlib.pyplot as plt"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 2. Query CRSP Database"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# We use monthly return data from common stocks (share code 10 and 11)\n",
+    "\n",
+    "# Returns are pulled for exchcd = -2,-1, 0 to address the issue that stocks temp stopped trading. \n",
+    "# Without these, the non-trading months will be tossed out in the output\n",
+    "\n",
+    "# Source: WRDS\n",
+    "# -2 Halted by the NYSE or AMEX\n",
+    "# -1 Suspended by the NYSE, AMEX, or NASDAQ\n",
+    "# 0 Not Trading on NYSE, AMEX, or NASDAQ\n",
+    "\n",
+    "# Stocks are from New York Stock Exchange (exchcd = 1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 426,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "crsp_m = pd.read_csv('NYSE_m.csv', low_memory=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 427,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Make Python datetime format\n",
+    "crsp_m['date'] =  pd.to_datetime(crsp_m['date'])\n",
+    "\n",
+    "\n",
+    "# Potentially Add\n",
+    "# crsp_m = crsp_m[crsp_m['date'] >= '1990-1-1']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 428,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Make all column names lower case\n",
+    "crsp_m.columns = crsp_m.columns.str.lower()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 429,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Change variable format to int\n",
+    "crsp_m[['permno','shrcd','exchcd']]=\\\n",
+    "    crsp_m[['permno','shrcd','exchcd']].astype(int)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 430,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# DISCUSS below! ---> is this eligable?\n",
+    "\n",
+    "# forcing errors to become NaN to convert column to int\n",
+    "crsp_m['ret'] = pd.to_numeric(crsp_m['ret'], errors='coerce') \n",
+    "\n",
+    "# fill in missing return with 0\n",
+    "crsp_m['ret'] = crsp_m['ret'].fillna(0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 431,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create log return \n",
+    "crsp_m['logret'] = np.log(1+crsp_m['ret'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 432,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>permno</th>\n",
+       "      <th>date</th>\n",
+       "      <th>shrcd</th>\n",
+       "      <th>exchcd</th>\n",
+       "      <th>siccd</th>\n",
+       "      <th>comnam</th>\n",
+       "      <th>permco</th>\n",
+       "      <th>dlret</th>\n",
+       "      <th>prc</th>\n",
+       "      <th>ret</th>\n",
+       "      <th>logret</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>10006</td>\n",
+       "      <td>1963-01-31</td>\n",
+       "      <td>10</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3743</td>\n",
+       "      <td>A C F INDUSTRIES INC</td>\n",
+       "      <td>22156</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>80.75</td>\n",
+       "      <td>0.047002</td>\n",
+       "      <td>0.045931</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>10006</td>\n",
+       "      <td>1963-02-28</td>\n",
+       "      <td>10</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3743</td>\n",
+       "      <td>A C F INDUSTRIES INC</td>\n",
+       "      <td>22156</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>83.25</td>\n",
+       "      <td>0.038700</td>\n",
+       "      <td>0.037970</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>10006</td>\n",
+       "      <td>1963-03-29</td>\n",
+       "      <td>10</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3743</td>\n",
+       "      <td>A C F INDUSTRIES INC</td>\n",
+       "      <td>22156</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>82.50</td>\n",
+       "      <td>-0.009009</td>\n",
+       "      <td>-0.009050</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>10006</td>\n",
+       "      <td>1963-04-30</td>\n",
+       "      <td>10</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3743</td>\n",
+       "      <td>A C F INDUSTRIES INC</td>\n",
+       "      <td>22156</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>89.50</td>\n",
+       "      <td>0.084848</td>\n",
+       "      <td>0.081440</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>10006</td>\n",
+       "      <td>1963-05-31</td>\n",
+       "      <td>10</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3743</td>\n",
+       "      <td>A C F INDUSTRIES INC</td>\n",
+       "      <td>22156</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>97.00</td>\n",
+       "      <td>0.091620</td>\n",
+       "      <td>0.087663</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033578</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-08-31</td>\n",
+       "      <td>11</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3676</td>\n",
+       "      <td>VISHAY PRECISION GROUP INC</td>\n",
+       "      <td>53443</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>24.91</td>\n",
+       "      <td>-0.021218</td>\n",
+       "      <td>-0.021446</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033579</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-09-30</td>\n",
+       "      <td>11</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3676</td>\n",
+       "      <td>VISHAY PRECISION GROUP INC</td>\n",
+       "      <td>53443</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>25.32</td>\n",
+       "      <td>0.016459</td>\n",
+       "      <td>0.016325</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033580</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-10-30</td>\n",
+       "      <td>11</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3676</td>\n",
+       "      <td>VISHAY PRECISION GROUP INC</td>\n",
+       "      <td>53443</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>23.89</td>\n",
+       "      <td>-0.056477</td>\n",
+       "      <td>-0.058135</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033581</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-11-30</td>\n",
+       "      <td>11</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3676</td>\n",
+       "      <td>VISHAY PRECISION GROUP INC</td>\n",
+       "      <td>53443</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>29.25</td>\n",
+       "      <td>0.224362</td>\n",
+       "      <td>0.202420</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033582</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-12-31</td>\n",
+       "      <td>11</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3676</td>\n",
+       "      <td>VISHAY PRECISION GROUP INC</td>\n",
+       "      <td>53443</td>\n",
+       "      <td>A</td>\n",
+       "      <td>31.48</td>\n",
+       "      <td>0.076239</td>\n",
+       "      <td>0.073473</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>1033583 rows × 11 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "         permno       date  shrcd  exchcd siccd                      comnam  \\\n",
+       "0         10006 1963-01-31     10       1  3743        A C F INDUSTRIES INC   \n",
+       "1         10006 1963-02-28     10       1  3743        A C F INDUSTRIES INC   \n",
+       "2         10006 1963-03-29     10       1  3743        A C F INDUSTRIES INC   \n",
+       "3         10006 1963-04-30     10       1  3743        A C F INDUSTRIES INC   \n",
+       "4         10006 1963-05-31     10       1  3743        A C F INDUSTRIES INC   \n",
+       "...         ...        ...    ...     ...   ...                         ...   \n",
+       "1033578   93426 2020-08-31     11       1  3676  VISHAY PRECISION GROUP INC   \n",
+       "1033579   93426 2020-09-30     11       1  3676  VISHAY PRECISION GROUP INC   \n",
+       "1033580   93426 2020-10-30     11       1  3676  VISHAY PRECISION GROUP INC   \n",
+       "1033581   93426 2020-11-30     11       1  3676  VISHAY PRECISION GROUP INC   \n",
+       "1033582   93426 2020-12-31     11       1  3676  VISHAY PRECISION GROUP INC   \n",
+       "\n",
+       "         permco dlret    prc       ret    logret  \n",
+       "0         22156   NaN  80.75  0.047002  0.045931  \n",
+       "1         22156   NaN  83.25  0.038700  0.037970  \n",
+       "2         22156   NaN  82.50 -0.009009 -0.009050  \n",
+       "3         22156   NaN  89.50  0.084848  0.081440  \n",
+       "4         22156   NaN  97.00  0.091620  0.087663  \n",
+       "...         ...   ...    ...       ...       ...  \n",
+       "1033578   53443   NaN  24.91 -0.021218 -0.021446  \n",
+       "1033579   53443   NaN  25.32  0.016459  0.016325  \n",
+       "1033580   53443   NaN  23.89 -0.056477 -0.058135  \n",
+       "1033581   53443   NaN  29.25  0.224362  0.202420  \n",
+       "1033582   53443     A  31.48  0.076239  0.073473  \n",
+       "\n",
+       "[1033583 rows x 11 columns]"
+      ]
+     },
+     "execution_count": 432,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "crsp_m"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 3. Calculate Formation Period Returns"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 433,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Measures Based on Past (J) Month Compounded Returns with J = Formation Period Length\n",
+    "# We sort the permno, date, ret and logret by 1) company 2) date.\n",
+    "\n",
+    "J = 11\n",
+    "sorted_crsp = crsp_m[['permno','date','ret','logret']].sort_values(['permno','date']).set_index('date')\n",
+    "\n",
+    "# Calculating Rolling Cumulative Return in the Formation Period by summing log returns over the J month formation period\n",
+    "formation_df = sorted_crsp.groupby(['permno'])['logret'].rolling(J, min_periods=J).sum().reset_index()\n",
+    "formation_df = formation_df.rename(columns={'logret':'sumlogret'})\n",
+    "\n",
+    "# reversing returns back to non-log\n",
+    "formation_df['cumret']=np.exp(formation_df['sumlogret'])-1"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 434,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>permno</th>\n",
+       "      <th>date</th>\n",
+       "      <th>sumlogret</th>\n",
+       "      <th>cumret</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1033578</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-08-31</td>\n",
+       "      <td>-0.273329</td>\n",
+       "      <td>-0.239158</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033579</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-09-30</td>\n",
+       "      <td>-0.296236</td>\n",
+       "      <td>-0.256388</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033580</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-10-30</td>\n",
+       "      <td>-0.364888</td>\n",
+       "      <td>-0.305726</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033581</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-11-30</td>\n",
+       "      <td>-0.150482</td>\n",
+       "      <td>-0.139707</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033582</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-12-31</td>\n",
+       "      <td>-0.092767</td>\n",
+       "      <td>-0.088594</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "         permno       date  sumlogret    cumret\n",
+       "1033578   93426 2020-08-31  -0.273329 -0.239158\n",
+       "1033579   93426 2020-09-30  -0.296236 -0.256388\n",
+       "1033580   93426 2020-10-30  -0.364888 -0.305726\n",
+       "1033581   93426 2020-11-30  -0.150482 -0.139707\n",
+       "1033582   93426 2020-12-31  -0.092767 -0.088594"
+      ]
+     },
+     "execution_count": 434,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "formation_df.tail()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 4. Form 10 Momentum Portfolios\n",
+    "Momentum Rank (momr) = 1 for past losers\n",
+    "Momentum Rank (momr) = 10 for past winners"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 435,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>permno</th>\n",
+       "      <th>date</th>\n",
+       "      <th>sumlogret</th>\n",
+       "      <th>cumret</th>\n",
+       "      <th>momr</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1033578</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-08-31</td>\n",
+       "      <td>-0.273329</td>\n",
+       "      <td>-0.239158</td>\n",
+       "      <td>3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033579</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-09-30</td>\n",
+       "      <td>-0.296236</td>\n",
+       "      <td>-0.256388</td>\n",
+       "      <td>4</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033580</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-10-30</td>\n",
+       "      <td>-0.364888</td>\n",
+       "      <td>-0.305726</td>\n",
+       "      <td>3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033581</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-11-30</td>\n",
+       "      <td>-0.150482</td>\n",
+       "      <td>-0.139707</td>\n",
+       "      <td>4</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033582</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-12-31</td>\n",
+       "      <td>-0.092767</td>\n",
+       "      <td>-0.088594</td>\n",
+       "      <td>3</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "         permno       date  sumlogret    cumret  momr\n",
+       "1033578   93426 2020-08-31  -0.273329 -0.239158     3\n",
+       "1033579   93426 2020-09-30  -0.296236 -0.256388     4\n",
+       "1033580   93426 2020-10-30  -0.364888 -0.305726     3\n",
+       "1033581   93426 2020-11-30  -0.150482 -0.139707     4\n",
+       "1033582   93426 2020-12-31  -0.092767 -0.088594     3"
+      ]
+     },
+     "execution_count": 435,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# For each date, ranking stocks into 1-10 portfolios based on cumret\n",
+    "# 1 = loser, 10 = winner portfolio \n",
+    "formation_df=formation_df.dropna(axis=0, subset=['cumret'])\n",
+    "formation_df['momr']=formation_df.groupby('date')['cumret'].transform(lambda x: pd.qcut(x, 10, labels=False))\n",
+    "\n",
+    "# For visualization: Shift momr from 0-9 to 1-10 \n",
+    "formation_df.momr=1+formation_df.momr.astype(int)\n",
+    "\n",
+    "formation_df.tail()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 436,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "momr\n",
+       "1    -0.405023\n",
+       "2    -0.188593\n",
+       "3    -0.091347\n",
+       "4    -0.020177\n",
+       "5     0.045884\n",
+       "6     0.113022\n",
+       "7     0.185556\n",
+       "8     0.275847\n",
+       "9     0.413493\n",
+       "10    0.876356\n",
+       "Name: cumret, dtype: float64"
+      ]
+     },
+     "execution_count": 436,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Average cumulative return for each portfolio\n",
+    "formation_df.groupby('momr')['cumret'].mean()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 5. Calculate Holding Period Return\n",
+    "Based on SAS code\n",
+    "K = Holding Period Length\n",
+    "Several key date variables:\n",
+    "hdate1 = start date of holding period\n",
+    "hdate2 = end date of holding period (determined by K)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 437,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Then calculate hdate1 and hdate2 using medate\n",
+    "\n",
+    "# K = Length of holding period\n",
+    "K = 1\n",
+    "\n",
+    "# S= Length of skipping period\n",
+    "S = 1\n",
+    "\n",
+    "formation_df['form_date'] = formation_df['date']\n",
+    "formation_df['medate'] = formation_df['date']+MonthEnd(0)\n",
+    "formation_df['hdate1']=formation_df['medate']+MonthBegin(1+S)\n",
+    "formation_df['hdate2']=formation_df['medate']+MonthEnd(K+S)\n",
+    "formation_df = formation_df[['permno', 'form_date','momr','hdate1','hdate2']]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 438,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>permno</th>\n",
+       "      <th>form_date</th>\n",
+       "      <th>momr</th>\n",
+       "      <th>hdate1</th>\n",
+       "      <th>hdate2</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1033578</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-08-31</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2020-10-01</td>\n",
+       "      <td>2020-10-31</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033579</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-09-30</td>\n",
+       "      <td>4</td>\n",
+       "      <td>2020-11-01</td>\n",
+       "      <td>2020-11-30</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033580</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-10-30</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2020-12-01</td>\n",
+       "      <td>2020-12-31</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033581</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-11-30</td>\n",
+       "      <td>4</td>\n",
+       "      <td>2021-01-01</td>\n",
+       "      <td>2021-01-31</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1033582</th>\n",
+       "      <td>93426</td>\n",
+       "      <td>2020-12-31</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2021-02-01</td>\n",
+       "      <td>2021-02-28</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "         permno  form_date  momr     hdate1     hdate2\n",
+       "1033578   93426 2020-08-31     3 2020-10-01 2020-10-31\n",
+       "1033579   93426 2020-09-30     4 2020-11-01 2020-11-30\n",
+       "1033580   93426 2020-10-30     3 2020-12-01 2020-12-31\n",
+       "1033581   93426 2020-11-30     4 2021-01-01 2021-01-31\n",
+       "1033582   93426 2020-12-31     3 2021-02-01 2021-02-28"
+      ]
+     },
+     "execution_count": 438,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Checking start and end of holding period relative to end of formation date\n",
+    "formation_df.tail()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Merging with old crsp_m dataframe to create holding period returns\n",
+    "holding_df = pd.merge(crsp_m[['permno','date','ret']], formation_df, on=['permno'], how='inner')\n",
+    "\n",
+    "# Focusing on period that is higher than hdate1 and lower than hdate2\n",
+    "holding_df = holding_df[(holding_df['hdate1']<=holding_df['date']) & (holding_df['date']<=holding_df['hdate2'])]\n",
+    "\n",
+    "# Rearrange the columns\n",
+    "holding_df = holding_df[['permno','form_date', 'momr', 'hdate1','hdate2', 'date', 'ret']]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "holding_df.tail()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 6. Calculate Portfolio Return\n",
+    "\n",
+    "We use equally weighted (similar to most literature on momemntum, e.g., Jegadeesh and Titman, 1993, Blitz et al., 2011)\n",
+    "At a given month, across all stocks within a momentum rank formed from a specific formation date"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# For a given date, momentum ranking and portfolio formation date, we calculate the mean return\n",
+    "port = holding_df.groupby(['date','momr', 'form_date'])['ret'].mean().reset_index()\n",
+    "\n",
+    "# Skip first 12 months of the sample\n",
+    "start_yr = port.date.dt.year.min()+1\n",
+    "port = port.loc[umd_port.date.dt.year>=start_yr]\n",
+    "port = port.sort_values(by=['date','momr'])\n",
+    "\n",
+    "port.head(12)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ewret_df = port"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Portfolio summary\n",
+    "ewret_df.groupby(['momr'])['ret'].describe()[['count','mean', 'std']].reset_index()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 7. Calculate Long Short Portfolio Returns\n",
+    "Each month, MOMR=10 (winners) portfolio - MOMR=1 (losers) portfolio"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Transpose portfolio layout (portfolios as columns)\n",
+    "ewret_t = ewret_df.pivot(index='date', columns='momr', values='ret')\n",
+    "\n",
+    "# Add prefix P in front of each column\n",
+    "ewret_t = ewret_t.add_prefix('P')\n",
+    "ewret_t = ewret_t.rename(columns={'P1':'Losers', 'P10':'Winners'})\n",
+    "ewret_t['long_short'] = ewret_t.Winners - ewret_t.Losers\n",
+    "\n",
+    "ewret_t.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Compute Long-Short Portfolio Cumulative Returns (for visulization)\n",
+    "\n",
+    "ewret_t['cumret_winners']   = (1+ewret_t.winners).cumprod()-1\n",
+    "ewret_t['cumret_losers']    = (1+ewret_t.losers).cumprod()-1\n",
+    "ewret_t['cumret_long_short']= (1+ewret_t.long_short).cumprod()-1"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 8. Portfolio statistics"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Mean \n",
+    "mom_mean = ewret_t[['Winners', 'Losers', 'long_short']].mean().to_frame()\n",
+    "mom_mean = mom_mean.rename(columns={0:'mean'}).reset_index()\n",
+    "mom_std = ewret_t[['Winners', 'Losers', 'long_short']].std().to_frame()\n",
+    "mom_std = mom_std.rename(columns={0:'std'}).reset_index()\n",
+    "\n",
+    "print(mom_mean)\n",
+    "print('________________________')\n",
+    "print(mom_std)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# T-Value and P-Value\n",
+    "t_losers = pd.Series(stats.ttest_1samp(ewret_t['Losers'],0.0)).to_frame().T\n",
+    "t_winners = pd.Series(stats.ttest_1samp(ewret_t['Winners'],0.0)).to_frame().T\n",
+    "t_long_short = pd.Series(stats.ttest_1samp(ewret_t['long_short'],0.0)).to_frame().T\n",
+    "\n",
+    "t_losers['momr']='Losers'\n",
+    "t_winners['momr']='Winners'\n",
+    "t_long_short['momr']='long_short'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "t_output =pd.concat([t_winners, t_losers, t_long_short])\\\n",
+    "    .rename(columns={0:'t-stat', 1:'p-value'})\n",
+    "\n",
+    "# Combine mean, t and p and format output\n",
+    "mom_output = pd.merge(mom_mean, t_output, on=['momr'], how='inner')\n",
+    "\n",
+    "mom_output['mean'] = mom_output['mean'].map('{:.2%}'.format)\n",
+    "mom_output['t-stat'] = mom_output['t-stat'].map('{:.2f}'.format)\n",
+    "mom_output['p-value'] = mom_output['p-value'].map('{:.3f}'.format)\n",
+    "\n",
+    "print('Momentum Strategy Summary:\\n\\n', mom_output)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 9. Plotting the Return Series"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "plt.figure(figsize=(12,9))\n",
+    "plt.suptitle('Momentum Strategy', fontsize=20)\n",
+    "ax1 = plt.subplot(211)\n",
+    "ax1.set_title('Long/Short Momentum Strategy', fontsize=15)\n",
+    "ax1.set_xlim([dt.datetime(2005,1,1), dt.datetime(2020,12,31)])\n",
+    "ax1.plot(ewret_t['cumret_long_short'])\n",
+    "ax2 = plt.subplot(212)\n",
+    "ax2.set_title('Cumulative Momentum Portfolios', fontsize=15)\n",
+    "ax2.plot(ewret_t['cumret_winners'], 'b-', ewret_t['cumret_losers'], 'r--')\n",
+    "ax2.set_xlim([dt.datetime(2005,1,1), dt.datetime(2020,12,31)])\n",
+    "ax2.legend(('Winners','Losers'), loc='upper left', shadow=True)\n",
+    "plt.subplots_adjust(top=0.92, hspace=0.2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 10. Fama French Regression (in progress)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Fama French 5 Factors\n",
+    "returns_ff_5f = pd.read_csv('FF5.csv', skiprows = 3, nrows=690, index_col = 0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "returns_ff_5f"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "returns_ff_5f.index = pd.to_datetime(returns_ff_5f.index, format= '%Y%m')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "returns_ff_5f.index = returns_ff_5f.index.to_period('M')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ewret_t.index = ewret_t.index.to_period('M')\n",
+    "ewret_t.head(5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Mkt-RF (ALMOST 1:1 with SPY)\n",
+    "\n",
+    "returns_ff = pd.DataFrame()\n",
+    "\n",
+    "returns_ff['Mkt_RF'] = returns_ff_5f[(returns_ff_5f.index >= \"2005-01-01\") & (returns_ff_5f.index <= \"2020-12-31\")]['Mkt-RF'] / 100\n",
+    "\n",
+    "# SIZE - SMB (Small Minus Big) is the average return on the nine small stock portfolios minus the average return on the nine big stock portfolios\n",
+    "returns_ff['SMB'] = returns_ff_5f[(returns_ff_5f.index >= \"2005-01-01\") & (returns_ff_5f.index <= \"2020-12-31\")]['SMB'] / 100\n",
+    "\n",
+    "# VALUE - HML (High Minus Low) is the average return on the two value portfolios minus the average return on the two growth portfolios\n",
+    "returns_ff['HML'] = returns_ff_5f[(returns_ff_5f.index >= \"2005-01-01\") & (returns_ff_5f.index <= \"2020-12-31\")]['HML'] / 100\n",
+    "\n",
+    "# RMW (Robust Minus Weak) is the average return on the two robust operating profitability portfolios minus the average return on the two weak operating profitability portfolios\n",
+    "returns_ff['RMW'] = returns_ff_5f[(returns_ff_5f.index >= \"2005-01-01\") & (returns_ff_5f.index <= \"2020-12-31\")]['RMW'] / 100\n",
+    "\n",
+    "# CMA (Conservative Minus Aggressive) is the average return on the two conservative investment portfolios minus the average return on the two aggressive investment portfolios\n",
+    "returns_ff['CMA'] = returns_ff_5f[(returns_ff_5f.index >= \"2005-01-01\") & (returns_ff_5f.index <= \"2020-12-31\")]['CMA'] / 100\n",
+    "\n",
+    "# Risk-Free\n",
+    "returns_ff['RF'] = returns_ff_5f[(returns_ff_5f.index >= \"2005-01-01\") & (returns_ff_5f.index <= \"2020-12-31\")]['RF'] / 100"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "returns_ff"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "FF_m = pd.merge(ewret_t['long_short'], returns_ff, left_index=True, right_index=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "FF_m"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "X = FF_m.drop(columns = ['long_short'])\n",
+    "y = FF_m['long_short']\n",
+    "\n",
+    "#X = sm.add_constant(X)\n",
+    "\n",
+    "#results = sm.OLS(y, X).fit(cov_type='HAC',cov_kwds={'maxlags':1})\n",
+    "#print(results.summary())"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
